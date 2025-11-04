@@ -1,92 +1,101 @@
 name: Build and Deploy SecureBank Service
 
-# Trigger this workflow on a push to the main or master branch
+# Trigger this workflow on a push to the 'master' branch
+# We use 'master' because your git logs show 'master -> master'
 on:
   push:
-    branches: [ "main", "master" ]
+    branches: [ "master" ]
 
-# Define environment variables
+# Grant permissions for the OIDC token and for writing content
+permissions:
+  contents: read
+  id-token: write
+
+# Environment variables available to all jobs
 env:
   PROJECT_ID: "alpine-anvil-473102-c4"
+  PROJECT_NUMBER: "1039471930533" # From your earlier logs
   GKE_CLUSTER: "gke-securebank-prod"
   GKE_REGION: "us-central1"
   ARTIFACT_REGISTRY: "securebank-docker-repo"
   SERVICE_NAME: "auth-service"
-  # This is the Project NUMBER, not ID. Find it on your GCP dashboard.
-  # I'm using the one from your previous error log, please double-check it.
-  PROJECT_NUMBER: "1039471930533"
 
 jobs:
   build-and-deploy:
+    name: Build and Deploy
     runs-on: ubuntu-latest
 
-    # --- OIDC AUTHENTICATION ---
-    # These permissions are required for the OIDC flow
-    permissions:
-      contents: 'read'
-      id-token: 'write'
-
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+    # 1. Check out the repository's code
+    - name: Check out repository
+      uses: actions/checkout@v4
 
-    # --- 1. Authenticate to Google Cloud (OIDC) ---
-    - name: 'Authenticate to Google Cloud'
+    # 2. Authenticate to Google Cloud using OIDC (Workload Identity Federation)
+    - name: Authenticate to Google Cloud
       id: auth
-      uses: 'google-github-actions/auth@v1'
+      uses: google-github-actions/auth@v2
       with:
-        # This is the full path to the Workload Identity provider
-        workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
-        # This is the GSA our CI/CD pipeline will impersonate
-        service_account: 'gsa-github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+        workload_identity_provider: "projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+        service_account: "gsa-github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com"
 
-    # --- 2. Configure Docker ---
-    # Set up gcloud CLI and authenticate Docker to Artifact Registry
-    - name: 'Set up Cloud SDK'
-      uses: 'google-github-actions/setup-gcloud@v1'
+    # 3. Set up the Google Cloud SDK and install the GKE auth plugin
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
       with:
+        # This is the correct input name
         install_components: 'gke-gcloud-auth-plugin'
 
-    - name: 'Configure Docker'
-      run: gcloud auth configure-docker ${{ env.GKE_REGION }}-docker.pkg.dev
-
-    # --- 3. Build and Push Image ---
-    - name: 'Build Docker Image'
-      run: |
-        docker build -t ${{ env.SERVICE_NAME }} ./app
-    - name: 'Tag and Push Docker Image'
-      id: build-image
+    # 4. Build the Docker image
+    - name: Build Docker image
       run: |
         export SHORT_SHA=$(git rev-parse --short HEAD)
-        export IMAGE_PATH="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
-        
-        docker tag ${{ env.SERVICE_NAME }} $IMAGE_PATH:$SHORT_SHA
-        docker tag ${{ env.SERVICE_NAME }} $IMAGE_PATH:latest
-        
-        docker push $IMAGE_PATH:$SHORT_SHA
-        docker push $IMAGE_PATH:latest
+        # Fix: Point to the 'app' directory for the Dockerfile
+        docker build -t $SERVICE_NAME \
+          --build-arg IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME" \
+          --build-arg IMAGE_TAG=$SHORT_SHA \
+          ./app
 
-        echo "image_tag=$SHORT_SHA" >> $GITHUB_OUTPUT
+    # 5. Configure Docker to authenticate with Artifact Registry
+    - name: Configure Docker
+      run: gcloud auth configure-docker us-central1-docker.pkg.dev --quiet
 
-    # --- 4. Deploy to GKE with Helm ---
-    
-    # --- THIS IS THE FIX ---
-    # We replace the 'run: gcloud container clusters get-credentials' command
-    # with the official Google GitHub Action that handles firewall rules.
-    - name: 'Get GKE Credentials'
-      uses: 'google-github-actions/get-gke-credentials@v1'
+    # 6. Push the Docker image to Artifact Registry
+    - name: Push Docker image
+      run: |
+        export SHORT_SHA=$(git rev-parse --short HEAD)
+        export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
+        
+        docker tag $SERVICE_NAME $IMAGE_REPO:$SHORT_SHA
+        docker tag $SERVICE_NAME $IMAGE_REPO:latest
+        
+        docker push $IMAGE_REPO:$SHORT_SHA
+        docker push $IMAGE_REPO:latest
+
+    # 7. Get GKE credentials (and update firewall)
+    # This action temporarily adds the runner's IP to the firewall
+    - name: Get GKE credentials
+      uses: google-github-actions/get-gke-credentials@v1
       with:
         cluster_name: ${{ env.GKE_CLUSTER }}
         location: ${{ env.GKE_REGION }}
-    # ---------------------
+        # This tells the action to use the OIDC-authenticated account
+        use_auth_provider: 'true'
 
-    - name: 'Deploy with Helm'
+    # 8. --- THIS IS THE FIX ---
+    # Wait for 30 seconds to allow the GKE firewall rule to update
+    - name: Wait for GKE firewall update
+      run: sleep 60
+
+    # 9. Deploy the application to GKE using Helm
+    - name: Deploy with Helm
       run: |
-        export IMAGE_REPO="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
+        export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
+        export SHORT_SHA=$(git rev-parse --short HEAD)
         
-        helm upgrade --install ${{ env.SERVICE_NAME }} ./helm \
+        # Fix: Point to the 'helm' directory at the root
+        helm upgrade --install auth-service ./helm \
           --set image.repository=$IMAGE_REPO \
-          --set image.tag=${{ steps.build-image.outputs.image_tag }} \
-          --set global.projectId=${{ env.PROJECT_ID }} \
+          --set image.tag=$SHORT_SHA \
+          --set global.projectId=$PROJECT_ID \
           --namespace default
 
