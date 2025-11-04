@@ -14,24 +14,16 @@ spec:
       labels:
         app: auth-service
     spec:
-      # --- WORKLOAD IDENTITY ---
-      # Use the KSA we defined
-      serviceAccountName: {{ .Values.serviceAccount.name }}
-      
+      # --- THIS IS THE FIX ---
+      # This tells the pod to use the KSA we created
+      serviceAccountName: ksa-auth
+      # ---------------------
       containers:
         - name: auth-service
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 5000
-          
-          # --- SECRET MANAGER CSI ---
-          # Mount the secret volume to the path our app expects
-          volumeMounts:
-            - name: secret-volume
-              mountPath: "/mnt/secrets"
-              readOnly: true
-          
-          # Liveness and readiness probes are critical for production
+            - containerPort: 5000 # This must match the port in your app.py
           livenessProbe:
             httpGet:
               path: /
@@ -44,13 +36,19 @@ spec:
               port: 5000
             initialDelaySeconds: 5
             periodSeconds: 10
-
-      # --- SECRET MANAGER CSI ---
-      # Define the volume using the CSI driver and our SecretProviderClass
+          volumeMounts:
+            - name: secret-volume
+              mountPath: "/mnt/secrets"
+              readOnly: true
       volumes:
         - name: secret-volume
           csi:
-            driver: "secrets-store.csi.k8s.io"
+            # --- THIS IS THE FIX ---
+            # Use the GKE-managed driver name
+            driver: secrets.gke.io
+            # ---------------------
             readOnly: true
             volumeAttributes:
-              secretProviderClass: {{ .Values.secretProvider.name }}
+              # This links to our SecretProviderClass
+              secretProviderClass: "auth-redis-secrets"
+
