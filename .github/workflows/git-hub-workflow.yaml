@@ -50,10 +50,11 @@ jobs:
       run: |
         export RUNNER_IP=$(curl -s ifconfig.me)/32
         echo "Runner IP is $RUNNER_IP"
-        # We give this firewall rule a name so we can remove it later
+        # --- THIS IS THE FIX ---
+        # Removed the 'github-runner=' display name, as it's not supported here.
         gcloud container clusters update ${{ env.GKE_CLUSTER }} \
           --region ${{ env.GKE_REGION }} \
-          --add-master-authorized-networks=github-runner=$RUNNER_IP
+          --add-master-authorized-networks=$RUNNER_IP
         # Set the IP as an output so the cleanup step can use it
         echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
 
