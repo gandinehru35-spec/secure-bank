@@ -53,7 +53,8 @@ jobs:
     # --- 3. Build and Push Image ---
     - name: 'Build Docker Image'
       run: |
-        docker build -t ${{ env.SERVICE_NAME }} ./auth-service
+        # Fix: Point to the 'app' directory where your Dockerfile is
+        docker build -t ${{ env.SERVICE_NAME }} ./app
 
     - name: 'Tag and Push Docker Image'
       id: build-image
@@ -80,8 +81,10 @@ jobs:
       run: |
         export IMAGE_REPO="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
         
-        helm upgrade --install ${{ env.SERVICE_NAME }} ./auth-service/helm \
+        # Fix: Point to the 'helm' directory at the root
+        helm upgrade --install ${{ env.SERVICE_NAME }} ./helm \
           --set image.repository=$IMAGE_REPO \
           --set image.tag=${{ steps.build-image.outputs.image_tag }} \
           --set global.projectId=${{ env.PROJECT_ID }} \
           --namespace default
+
