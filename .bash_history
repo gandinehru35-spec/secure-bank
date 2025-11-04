@@ -526,3 +526,10 @@ git commit -m "Final FIX: Verified and pushed GKE-native driver names"
 git push origin master
 git add /helm
 ls
+git add .
+git commit -m "Final FIX: Verified and pushed GKE-native driver names"
+git push origin master
+# Delete the old, incomplete file
+rm ./helm/templates/secrets-crds.yaml
+# Download the complete, self-contained CRD manifest
+curl -sL https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/charts/secrets-store-csi-driver/crds/secrets-store.csi.x-k8s.io_secretproviderclasses.yaml > ./helm/templates/secrets-crds.yaml
