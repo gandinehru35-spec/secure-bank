@@ -1,14 +1,27 @@
-# Default values for auth-service
+# Default values for auth-service.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# Global variables, primarily used for injecting project context
+global:
+  # CRITICAL: This value is set by the GitHub Actions workflow using $PROJECT_ID.
+  # It prevents the 'nil pointer' error in the SecretProviderClass template.
+  projectId: "alpine-anvil-473102-c4" 
+
+replicaCount: 1
+
 image:
-  # The repository will be set in the CI/CD pipeline
-  # e.g., us-central1-docker.pkg.dev/alpine-anvil-473102-c4/securebank-docker-repo/auth-service
-  repository: ""
-  tag: "latest"
+  # This repository is set by the CI/CD pipeline environment variable
+  repository: us-central1-docker.pkg.dev/alpine-anvil-473102-c4/securebank-docker-repo/auth-service
+  # This tag is set by the CI/CD pipeline using the Git SHORT_SHA
+  tag: latest
+  pullPolicy: IfNotPresent
 
+service:
+  type: ClusterIP
+  port: 5000 
+  
+# Service Account used by the Pods for Workload Identity (KSA -> GSA)
 serviceAccount:
-  # This is the KSA. We will create it.
-  name: "ksa-auth"
-
-# This is the name of the SecretProviderClass we will create
-secretProvider:
-  name: "auth-redis-secrets"
+  # Must match the KSA name defined in serviceaccount.yaml
+  name: ksa-auth
