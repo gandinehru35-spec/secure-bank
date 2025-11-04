@@ -87,11 +87,12 @@ jobs:
 
     # 9. Deploy the application to GKE using Helm
     - name: Deploy with Helm
+      # --- THIS IS THE FIX ---
+      # Set the env var for the whole step, not just inside the script
+      env:
+        USE_GKE_GCLOUD_AUTH_PLUGIN: "True"
       run: |
-        # --- THIS IS THE FIX ---
-        # Tell kubectl/helm to use the new GKE auth plugin
-        export USE_GKE_GCLOUD_AUTH_PLUGIN=True
-        
+        # The environment variable is now set for the step
         export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
         export SHORT_SHA=$(git rev-parse --short HEAD)
         
