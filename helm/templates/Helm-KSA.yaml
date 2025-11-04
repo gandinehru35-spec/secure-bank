@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.serviceAccount.name }}
+  namespace: default
+  annotations:
+    # --- THIS IS THE KEY ---
+    # This annotation links this KSA to our GCP Service Account
+    # This is what enables Workload Identity
+    iam.gke.io/gcp-service-account: "gsa-auth-service@{{ .Values.global.projectId }}.iam.gserviceaccount.com"

@@ -1,0 +1,14 @@
+# Default values for auth-service
+image:
+  # The repository will be set in the CI/CD pipeline
+  # e.g., us-central1-docker.pkg.dev/alpine-anvil-473102-c4/securebank-docker-repo/auth-service
+  repository: ""
+  tag: "latest"
+
+serviceAccount:
+  # This is the KSA. We will create it.
+  name: "ksa-auth"
+
+# This is the name of the SecretProviderClass we will create
+secretProvider:
+  name: "auth-redis-secrets"

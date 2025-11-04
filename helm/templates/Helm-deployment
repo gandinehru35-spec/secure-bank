@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  labels:
+    app: auth-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      # --- WORKLOAD IDENTITY ---
+      # Use the KSA we defined
+      serviceAccountName: {{ .Values.serviceAccount.name }}
+      
+      containers:
+        - name: auth-service
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 5000
+          
+          # --- SECRET MANAGER CSI ---
+          # Mount the secret volume to the path our app expects
+          volumeMounts:
+            - name: secret-volume
+              mountPath: "/mnt/secrets"
+              readOnly: true
+          
+          # Liveness and readiness probes are critical for production
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+
+      # --- SECRET MANAGER CSI ---
+      # Define the volume using the CSI driver and our SecretProviderClass
+      volumes:
+        - name: secret-volume
+          csi:
+            driver: "secrets-store.csi.k8s.io"
+            readOnly: true
+            volumeAttributes:
+              secretProviderClass: {{ .Values.secretProvider.name }}
