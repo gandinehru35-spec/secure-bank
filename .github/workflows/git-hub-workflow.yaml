@@ -88,7 +88,11 @@ jobs:
 
     # 9. Deploy the application to GKE using Helm
     - name: Deploy with Helm
-      # The env var is no longer needed as v2 handles this
+      # --- THIS IS THE FIX ---
+      # We MUST set this env var for the step to tell helm/kubectl
+      # to use the new gke-gcloud-auth-plugin
+      env:
+        USE_GKE_GCLOUD_AUTH_PLUGIN: "True"
       run: |
         export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
         export SHORT_SHA=$(git rev-parse --short HEAD)
