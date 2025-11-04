@@ -95,11 +95,11 @@ jobs:
     # 9. Deploy Secret Manager CRDs (The final CRD Fix)
     - name: Deploy Secret Manager CRDs
       run: |
-        # CRD (Custom Resource Definition) for SecretProviderClass
-        kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/config/rbac/secrets-store-crds/secrets-store-csi-driver-crds.yaml
+        # 1. CRD (Custom Resource Definition) for SecretProviderClass - Corrected Link
+        kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/config/crds/secrets-store.csi.x-k8s.io_secretproviderclasses.yaml
         
-        # RBAC required for the GKE Secret Manager service
-        kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/secrets-store-csi-driver-provider-gcp/main/config/rbac/secrets-store-clusterrolebinding.yaml
+        # 2. RBAC required for the GKE Secret Manager service - Corrected Link
+        kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/secrets-store-csi-driver-provider-gcp/main/deployment/cluster-role-binding.yaml
         
     # 10. Deploy the application to GKE using Helm
     - name: Deploy with Helm
