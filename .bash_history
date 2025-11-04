@@ -533,3 +533,22 @@ git push origin master
 rm ./helm/templates/secrets-crds.yaml
 # Download the complete, self-contained CRD manifest
 curl -sL https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/charts/secrets-store-csi-driver/crds/secrets-store.csi.x-k8s.io_secretproviderclasses.yaml > ./helm/templates/secrets-crds.yaml
+git add .
+git commit -m "Final FIX: Using correct local CRD manifest file for installation"
+git push origin master
+# 1. DELETE the bad RBAC file
+rm ./helm/templates/secrets-rbac.yaml
+# 2. RUN this command to install the missing RBAC elements directly 
+#    This command is guaranteed to be stable and complete.
+kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/secrets-store-csi-driver-provider-gcp/main/deployment/provider-gcp-cluster-role.yaml
+# Delete the old, bad RBAC file first
+rm ./helm/templates/secrets-rbac.yaml
+# Download the content of the correct ClusterRoleBinding file locally
+curl -sL https://raw.githubusercontent.com/GoogleCloudPlatform/secrets-store-csi-driver-provider-gcp/main/deployment/cluster-role-binding.yaml > ./helm/templates/secrets-rbac.yaml
+# 1. Add both the CRD file (if changed) and the new RBAC file
+git add ./helm/templates/secrets-rbac.yaml
+git add ./helm/templates/secrets-crds.yaml
+# 2. Commit the fix
+git commit -m "Final Fix: Using local RBAC files to guarantee installation"
+# 3. Push to your repository
+git push origin master
