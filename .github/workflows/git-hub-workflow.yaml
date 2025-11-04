@@ -72,9 +72,10 @@ jobs:
         docker push $IMAGE_REPO:latest
 
     # 7. Get GKE credentials (and update firewall)
-    # This action temporarily adds the runner's IP to the firewall
+    # --- THIS IS THE FIX ---
+    # Use v2 of the action, which supports the new auth plugin
     - name: Get GKE credentials
-      uses: google-github-actions/get-gke-credentials@v1
+      uses: google-github-actions/get-gke-credentials@v2
       with:
         cluster_name: ${{ env.GKE_CLUSTER }}
         location: ${{ env.GKE_REGION }}
@@ -83,16 +84,12 @@ jobs:
 
     # 8. Wait for 60 seconds to allow the GKE firewall rule to update
     - name: Wait for GKE firewall update
-      run: sleep 60
+      run: sleep 30
 
     # 9. Deploy the application to GKE using Helm
     - name: Deploy with Helm
-      # --- THIS IS THE FIX ---
-      # Set the env var for the whole step, not just inside the script
-      env:
-        USE_GKE_GCLOUD_AUTH_PLUGIN: "True"
+      # The env var is no longer needed as v2 handles this
       run: |
-        # The environment variable is now set for the step
         export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
         export SHORT_SHA=$(git rev-parse --short HEAD)
         
