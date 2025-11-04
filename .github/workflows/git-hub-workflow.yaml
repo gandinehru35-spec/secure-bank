@@ -114,5 +114,5 @@ jobs:
         echo "Cleaning up firewall rule for ${{ steps.get_ip.outputs.runner_ip }}"
         gcloud container clusters update ${{ env.GKE_CLUSTER }} \
           --region ${{ env.GKE_REGION }} \
-          --remove-master-authorized-networks=github-runner
+          --remove-master-authorized-networks=${{ steps.get_ip.outputs.runner_ip }}
 
