@@ -662,3 +662,15 @@ git add .
 git commit -m "Fix: Rename Helm chart files to match standard conventions"
 # 3. Push to your repository
 git push origin master
+git add .
+git commit -m "Fix: Rename Helm chart files to match standard conventions"
+git push origin master
+# 1. Stage the corrected requirements file
+git add auth-service/requirements.txt
+# 2. Commit the fix
+git commit -m "Fix: Correct formatting in requirements.txt"
+# 3. Push to your repository
+git push origin master
+This will trigger the workflow again, and the `pip install` command will now succeed.
+git add auth-service/requirements.txt
+git commit -m "Fix: Correct formatting in requirements.txt"
