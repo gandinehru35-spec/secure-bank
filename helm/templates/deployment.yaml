@@ -1,54 +1,59 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: auth-service
+  name: {{ .Chart.Name }}-deployment
   labels:
-    app: auth-service
+    app: {{ .Chart.Name }}
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
-      app: auth-service
+      app: {{ .Chart.Name }}
   template:
     metadata:
       labels:
-        app: auth-service
+        app: {{ .Chart.Name }}
     spec:
-      # --- THIS IS THE FIX ---
-      # This tells the pod to use the KSA we created
+      # CRITICAL: Link the Kubernetes Service Account (KSA) to the pod
       serviceAccountName: ksa-auth
-      # ---------------------
+      
       containers:
-        - name: auth-service
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 5000 # This must match the port in your app.py
-          livenessProbe:
-            httpGet:
-              path: /
-              port: 5000
-            initialDelaySeconds: 15
-            periodSeconds: 20
-          readinessProbe:
-            httpGet:
-              path: /
-              port: 5000
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          volumeMounts:
-            - name: secret-volume
-              mountPath: "/mnt/secrets"
-              readOnly: true
-      volumes:
-        - name: secret-volume
-          csi:
-            # --- THIS IS THE FIX ---
-            # Use the GKE-managed driver name
-            driver: secrets.gke.io
-            # ---------------------
-            readOnly: true
-            volumeAttributes:
-              # This links to our SecretProviderClass
-              secretProviderClass: "auth-redis-secrets"
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+        imagePullPolicy: Always
+        
+        # NOTE: Your Python app is listening on 5000
+        ports:
+        - containerPort: 5000
+        
+        # Health Checks
+        livenessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 15
+          timeoutSeconds: 1
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 5000
+          initialDelaySeconds: 5
+          timeoutSeconds: 1
+          periodSeconds: 10
 
+        # --- CSI Driver Volume Mount ---
+        volumeMounts:
+        - name: secret-volume
+          mountPath: /mnt/secrets/
+          readOnly: true
+
+      # --- CSI Driver Volume Definition ---
+      volumes:
+      - name: secret-volume
+        csi:
+          # FIX: This driver name is specific to the GKE-managed Secret Manager
+          driver: gcp-secret-manager
+          readOnly: true
+          volumeAttributes:
+            secretProviderClass: auth-redis-secrets
