@@ -47,8 +47,8 @@ jobs:
     - name: 'Set up Cloud SDK'
       uses: 'google-github-actions/setup-gcloud@v1'
       with:
-        # This is the fix: Install the auth plugin
-        components: 'gke-gcloud-auth-plugin'
+        # This is the fix: Use 'install_components' instead of 'components'
+        install_components: 'gke-gcloud-auth-plugin'
 
     - name: 'Configure Docker'
       run: gcloud auth configure-docker ${{ env.GKE_REGION }}-docker.pkg.dev
