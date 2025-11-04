@@ -55,6 +55,7 @@ jobs:
         # This command REPLACES the list with the Bastion IP AND the Runner IP
         gcloud container clusters update ${{ env.GKE_CLUSTER }} \
           --region ${{ env.GKE_REGION }} \
+          --enable-master-authorized-networks \
           --master-authorized-networks ${{ env.BASTION_IP }},$RUNNER_IP
         # Set the IP as an output so the cleanup step can use it
         echo "runner_ip=$RUNNER_IP" >> $GITHUB_OUTPUT
@@ -115,5 +116,6 @@ jobs:
         echo "Cleaning up firewall. Setting authorized networks back to Bastion IP."
         gcloud container clusters update ${{ env.GKE_CLUSTER }} \
           --region ${{ env.GKE_REGION }} \
+          --enable-master-authorized-networks \
           --master-authorized-networks ${{ env.BASTION_IP }}
 
