@@ -45,7 +45,6 @@ jobs:
       with:
         install_components: 'gke-gcloud-auth-plugin'
 
-    # --- THIS IS THE FIX ---
     # 4. Get the runner's IP and ADD it to the firewall list
     - name: Authorize GitHub Runner IP
       id: get_ip
@@ -67,7 +66,7 @@ jobs:
         docker build -t $SERVICE_NAME \
           --build-arg IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME" \
           --build-arg IMAGE_TAG=$SHORT_SHA \
-          ./app
+          ./auth-service
 
     # 6. Configure Docker to authenticate with Artifact Registry
     - name: Configure Docker

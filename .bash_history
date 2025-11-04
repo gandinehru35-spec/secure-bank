@@ -656,3 +656,9 @@ mv ~/helm/templates/Helm-deployment ~/helm/templates/deployment.yaml
 # 6. (Optional but good practice) Helm expects a values.yaml file, 
 #    but yours is Helm-values.yaml. Let's fix that too.
 mv ~/helm/Helm-values.yaml ~/helm/values.yaml
+# 1. Add all the file changes (renames) to Git
+git add .
+# 2. Commit the renames
+git commit -m "Fix: Rename Helm chart files to match standard conventions"
+# 3. Push to your repository
+git push origin master
