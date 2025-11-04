@@ -1,12 +1,87 @@
-apiVersion: v1
-kind: Service
-metadata:
-  name: auth-service
-spec:
-  type: ClusterIP
-  selector:
-    app: auth-service
-  ports:
-    - protocol: TCP
-      port: 80
-      targetPort: 5000
+name: Build and Deploy SecureBank Service
+
+# Trigger this workflow on a push to the main or master branch
+on:
+  push:
+    branches: [ "main", "master" ]
+
+# Define environment variables
+env:
+  PROJECT_ID: "alpine-anvil-473102-c4"
+  GKE_CLUSTER: "gke-securebank-prod"
+  GKE_REGION: "us-central1"
+  ARTIFACT_REGISTRY: "securebank-docker-repo"
+  SERVICE_NAME: "auth-service"
+  # This is the Project NUMBER, not ID. Find it on your GCP dashboard.
+  # I'm using the one from your previous error log, please double-check it.
+  PROJECT_NUMBER: "1039471930533"
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    # --- OIDC AUTHENTICATION ---
+    # These permissions are required for the OIDC flow
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v3
+
+    # --- 1. Authenticate to Google Cloud (OIDC) ---
+    # This action uses the OIDC provider we set up in cicd.tf
+    # It exchanges a GitHub token for a Google Cloud token.
+    - name: 'Authenticate to Google Cloud'
+      id: auth
+      uses: 'google-github-actions/auth@v1'
+      with:
+        # This is the full path to the Workload Identity provider
+        workload_identity_provider: 'projects/${{ env.PROJECT_NUMBER }}/locations/global/workloadIdentityPools/github-pool/providers/github-provider'
+        # This is the GSA our CI/CD pipeline will impersonate
+        service_account: 'gsa-github-actions@${{ env.PROJECT_ID }}.iam.gserviceaccount.com'
+
+    # --- 2. Configure Docker ---
+    # Set up gcloud CLI and authenticate Docker to Artifact Registry
+    - name: 'Set up Cloud SDK'
+      uses: 'google-github-actions/setup-gcloud@v1'
+
+    - name: 'Configure Docker'
+      run: gcloud auth configure-docker ${{ env.GKE_REGION }}-docker.pkg.dev
+
+    # --- 3. Build and Push Image ---
+    - name: 'Build Docker Image'
+      run: |
+        docker build -t ${{ env.SERVICE_NAME }} ./auth-service
+
+    - name: 'Tag and Push Docker Image'
+      id: build-image
+      run: |
+        # Use the short commit SHA as the image tag
+        export SHORT_SHA=$(git rev-parse --short HEAD)
+        export IMAGE_PATH="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
+        
+        docker tag ${{ env.SERVICE_NAME }} $IMAGE_PATH:$SHORT_SHA
+        docker tag ${{ env.SERVICE_NAME }} $IMAGE_PATH:latest
+        
+        docker push $IMAGE_PATH:$SHORT_SHA
+        docker push $IMAGE_PATH:latest
+
+        # Set output for the tag
+        echo "image_tag=$SHORT_SHA" >> $GITHUB_OUTPUT
+
+    # --- 4. Deploy to GKE with Helm ---
+    - name: 'Get GKE Credentials'
+      # This uses the OIDC-authenticated gcloud to get cluster credentials
+      run: gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} --region ${{ env.GKE_REGION }}
+
+    - name: 'Deploy with Helm'
+      run: |
+        export IMAGE_REPO="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
+        
+        helm upgrade --install ${{ env.SERVICE_NAME }} ./auth-service/helm \
+          --set image.repository=$IMAGE_REPO \
+          --set image.tag=${{ steps.build-image.outputs.image_tag }} \
+          --set global.projectId=${{ env.PROJECT_ID }} \
+          --namespace default
