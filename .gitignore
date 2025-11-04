@@ -1,0 +1,32 @@
+Terraform
+
+*.tfstate
+*.tfstate.backup
+.terraform/
+.terraform.lock.hcl
+
+Local Environment & Cache
+
+.cache/
+.config/
+.codeoss/
+.docker/
+.npm/
+
+OS / Editor
+
+.DS_Store
+*.swp
+.viminfo
+
+Local Logs & History
+
+*.log
+.bash_history
+.gke.tf.swp
+
+Credentials & Local Config
+
+.kube/
+.ssh/
+.gitconfig
