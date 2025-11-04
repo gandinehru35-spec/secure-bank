@@ -1,5 +1,6 @@
 # GKE Cluster Resource
 resource "google_container_cluster" "securebank_cluster" {
+  # We use the 'google-beta' provider for the policy_controller feature
   provider = google-beta
 
   name     = var.cluster_name
@@ -14,21 +15,13 @@ resource "google_container_cluster" "securebank_cluster" {
     services_secondary_range_name = google_compute_subnetwork.subnet_gke.secondary_ip_range[0].range_name
   }
 
-  # --- Security: Private Nodes ---
-  # We are REMOVING 'enable_private_endpoint = true'.
-  # This makes the control plane public, so 'master_authorized_networks_config'
-  # can work with your public bastion_ip.
-  # We are KEEPING 'enable_private_nodes = true', which is key to our design.
+  # --- Security: Public Control Plane, Private Nodes ---
+  # We have private nodes
   private_cluster_config {
     enable_private_nodes = true
-
-    # This is the internal range for the master to talk to private nodes
-    master_ipv4_cidr_block = "172.20.0.0/28"
-
-    # We REMOVE the 'master_global_access_config' block, as it's not needed.
   }
 
-  # This block will now work, as it's fire-walling a public endpoint.
+  # But we have a firewalled public endpoint for kubectl/CI-CD
   master_authorized_networks_config {
     cidr_blocks {
       cidr_block   = var.bastion_ip
@@ -48,6 +41,14 @@ resource "google_container_cluster" "securebank_cluster" {
     network_policy_config {
       disabled = false
     }
+
+    # 'secret_manager_config' was incorrectly placed here
+  }
+
+  # --- THIS IS THE FIX ---
+  # secret_manager_config is a top-level argument
+  secret_manager_config {
+    enabled = true
   }
 
   # --- Security: Workload Identity ---
@@ -55,10 +56,9 @@ resource "google_container_cluster" "securebank_cluster" {
     workload_pool = "${var.project_id}.svc.id.goog"
   }
 
+  # We create our own node pools
   remove_default_node_pool = true
   initial_node_count       = 1
-
-  deletion_protection = false
 
   # We must depend on the APIs being enabled
   depends_on = [

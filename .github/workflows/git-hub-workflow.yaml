@@ -92,28 +92,26 @@ jobs:
         gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} \
           --region ${{ env.GKE_REGION }}
 
-    # 9. Deploy Secret Manager CRDs (Final CRD Fix: Use Open Source CRD)
-    - name: Deploy Secret Manager CRDs
+    # 9. Deploy Secret Manager CRDs (Final Definitive CRD Fix)
+    - name: Deploy Secret Manager CRDs (From Local Repo)
       run: |
-        # 1. CRD (Custom Resource Definition) for SecretProviderClass - Uses stable upstream K8s SIGs
-        kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/config/crds/secrets-store-csi-driver-crds.yaml
+        # 1. CRD (Custom Resource Definition) for SecretProviderClass - LOCAL FILE
+        kubectl apply -f ./helm/templates/secrets-crds.yaml
         
-        # 2. RBAC required for the GKE Secret Manager service
-        # NOTE: This link is to the required RBAC components.
-        kubectl apply -f https://raw.githubusercontent.com/GoogleCloudPlatform/secrets-store-csi-driver-provider-gcp/main/deployment/cluster-role-binding.yaml
+        # 2. RBAC required for the GKE Secret Manager service - LOCAL FILE
+        kubectl apply -f ./helm/templates/secrets-rbac.yaml
         
-    # 10. Deploy the application to GKE using Helm (Use old driver name to match installed CRD)
+    # 10. Deploy the application to GKE using Helm
     - name: Deploy with Helm
       run: |
         export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
         export SHORT_SHA=$(git rev-parse --short HEAD)
         
-        # Helm upgrade using the **OLD DRIVER NAME** to match the installed open-source CRD
+        # We use the GKE-native driver name (gcp-secret-manager), which is the one installed on the cluster.
         helm upgrade --install auth-service ./helm \
           --set image.repository=$IMAGE_REPO \
           --set image.tag=$SHORT_SHA \
           --set global.projectId=$PROJECT_ID \
-          --set secretProviderClass.driver=secrets-store.csi.x-k8s.io \
           --namespace default
           
     # --- CLEANUP STEP ---

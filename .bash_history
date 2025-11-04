@@ -1,240 +1,3 @@
-      name: data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "regional-pd"
-      resources:
-        requests:
-          storage: 10Gi
-EOF
-
-kubectl get pods
-# 1. Disable the addon
-gcloud container clusters update "case-6-cluster"     --region "us-central1"     --update-addons=GcePersistentDiskCsiDriver=DISABLED
-# 2. Re-enable the addon
-gcloud container clusters update "case-6-cluster"     --region "us-central1"     --update-addons=GcePersistentDiskCsiDriver=ENABLED
-gcloud container clusters describe "case-6-cluster"     --region "us-central1"     --format="value(workloadIdentityConfig.workloadPool)"
-kubectl get pods -n kube-system -l app.kubernetes.io/name=gce-pd-csi-driver
-kubectl get pod
-gcloud container clusters describe "case-6-cluster"     --region "us-central1"     --format="value(status)"
-gcloud container clusters update "case-6-cluster"     --region "us-central1"     --update-addons=GcePersistentDiskCsiDriver=ENABLED
-kubectl get pods -n kube-system -l app.kubernetes.io/name=gce-pd-csi-driver
-kubectl get pods all -n kube-system
-kubectl get pods -n kube-system
-kubectl get pods all -n kube-system
-kubectl get pods -n kube-system
-kubectl get pods -n kube-system -l app.kubernetes.io/name=gce-pd-csi-driver
-gcloud container clusters create "case-5-cluster"     --region "us-central1"     --release-channel "regular"     --num-nodes=1     --disk-type "pd-standard"     --disk-size "100GB"     --workload-pool=${PROJECT_ID}.svc.id.goog     --addons=GcePersistentDiskCsiDriver=ENABLED
-gcloud container clusters delete "case-6-cluster" --region "us-central1"
-gcloud container clusters create "case-5-cluster"     --region "us-central1"     --release-channel "regular"     --num-nodes=1     --disk-type "pd-standard"     --disk-size "100GB"     --workload-pool=alpine-anvil-473102-c4.svc.id.goog     --addons=GcePersistentDiskCsiDriver=ENABLED
-gcloud container clusters get-credentials "case-5-cluster" --region "us-central1"
-kubectl get pods -n kube-system -l app.kubernetes.io/name=gce-pd-csi-driver
-kubectl apply -f - <<EOF
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: regional-pd
-provisioner: pd.gce.gke.io
-parameters:
-  type: pd-standard
-  replication-type: regional-pd
-volumeBindingMode: WaitForFirstConsumer
-allowedTopologies:
-- matchLabelExpressions:
-  - key: topology.gke.io/zone
-    values:
-    - us-central1-a
-    - us-central1-b
-    - us-central1-c
-EOF
-
-kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: cassandra
-spec:
-  serviceName: "cassandra"
-  replicas: 2 
-  selector:
-    matchLabels:
-      app: cassandra
-  template:
-    metadata:
-      labels:
-        app: cassandra
-    spec:
-      containers:
-      - name: app
-        image: registry.k8s.io/google-samples/cassandra:v14
-        command: ["/bin/sh", "-c", "sleep 3600"]
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/cassandra
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: "regional-pd"
-      resources:
-        requests:
-          storage: 10Gi
-EOF
-
-kubectl get pods
-# Delete the statefulset
-kubectl delete statefulset cassandra
-# Delete the stuck PVC
-kubectl delete pvc data-cassandra-0
-# Delete the non-working StorageClass
-kubectl delete sc regional-pd
-kubectl apply -f - <<EOF
-apiVersion: storage.k8s.io/v1
-kind: StorageClass
-metadata:
-  name: regional-pd-legacy  # <-- We'll use this new name
-provisioner: kubernetes.io/gce-pd # <-- The built-in (legacy) provisioner
-parameters:
-  type: pd-standard
-  replication-type: regional-pd
-volumeBindingMode: WaitForFirstConsumer
-allowedTopologies:
-- matchLabelExpressions:
-  - key: topology.gke.io/zone
-    values:
-    - us-central1-a
-    - us-central1-b
-    - us-central1-c
-EOF
-
-kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: cassandra
-spec:
-  serviceName: "cassandra"
-  replicas: 2
-  selector:
-    matchLabels:
-      app: cassandra
-  template:
-    metadata:
-      labels:
-        app: cassandra
-    spec:
-      containers:
-      - name: app
-        image: registry.k8s.io/google-samples/cassandra:v14
-        command: ["/bin/sh", "-c", "sleep 3600"]
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/cassandra
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: regional-pd-legacy # <-- THE FIX: Point to the new SC
-      resources:
-        requests:
-          storage: 10Gi
-EOF
-
-kubectl get pods
-kubectl get pods -w
-kubectl get pvc
-kubectl describe pvc data-cassandra-0
-kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: cassandra
-spec:
-  serviceName: "cassandra"
-  replicas: 2
-  selector:
-    matchLabels:
-      app: cassandra
-  template:
-    metadata:
-      labels:
-        app: cassandra
-    spec:
-      containers:
-      - name: app
-        image: registry.k8s.io/google-samples/cassandra:v14
-        command: ["/bin/sh", "-c", "sleep 3600"]
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/cassandra
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: regional-pd-legacy # <-- THE FIX: Point to the new SC
-      resources:
-        requests:
-          storage: 200Gi
-EOF
-
-kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: cassandra
-spec:
-  serviceName: "cassandra"
-  replicas: 2
-  selector:
-    matchLabels:
-      app: cassandra
-  template:
-    metadata:
-      labels:
-        app: cassandra
-    spec:
-      containers:
-      - name: app
-        image: registry.k8s.io/google-samples/cassandra:v14
-        command: ["/bin/sh", "-c", "sleep 3600"]
-        volumeMounts:
-        - name: data
-          mountPath: /var/lib/cassandra
-  volumeClaimTemplates:
-  - metadata:
-      name: data
-    spec:
-      accessModes: [ "ReadWriteOnce" ]
-      storageClassName: regional-pd-legacy # <-- THE FIX: Point to the new SC
-      resources:
-        requests:
-          storage: 200Gi
-EOF
-
-kubectl apply -f - <<EOF
-apiVersion: apps/v1
-kind: StatefulSet
-metadata:
-  name: cassandra
-spec:
-  serviceName: "cassandra"
-  replicas: 2
-  selector:
-    matchLabels:
-      app: cassandra
-  template:
-    metadata:
-      labels:
-        app: cassandra
-    spec:
-      containers:
-      - name: app
-        image: registry.k8s.io/google-samples/cassandra:v14
-        command: ["/bin/sh", "-c", "sleep 3600"]
-        volumeMounts:
-        - name: data
           mountPath: /var/lib/cassandra
   volumeClaimTemplates:
   - metadata:
@@ -674,3 +437,92 @@ git push origin master
 This will trigger the workflow again, and the `pip install` command will now succeed.
 git add auth-service/requirements.txt
 git commit -m "Fix: Correct formatting in requirements.txt"
+git add .
+git commit -m "Fix: Correct formatting in requirements.txt"
+git push origin master
+# 1. Stage the corrected requirements file
+git add auth-service/requirements.txt
+# 2. Commit the fix
+git commit -m "Fix: Correct formatting in requirements.txt (for real)"
+# 3. Push to your repository
+git push origin master
+terraform apply
+gcloud auth application-default login
+terraform apply
+kubectl get pods
+gcloud container clusters get-credentials gke-securebank-prod --region us-central1 --project alpine-anvil-473102-c4
+kubectl get pods --namespace default
+gcloud auth application-default login --remote-bootstrap="https://accounts.google.com/o/oauth2/auth?response_type=code&client_id=764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com&scope=openid+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fuserinfo.email+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fcloud-platform+https%3A%2F%2Fwww.googleapis.com%2Fauth%2Fsqlservice.login&state=qi0A0gucf5IrqzQsHEsGb1EzV3IpaI&access_type=offline&code_challenge=PTJ9ofVN9EfwhauNVdOnGVOysmu2vZql-wwLnZOZAA4&code_challenge_method=S256&token_usage=remote"
+gcloud container clusters get-credentials gke-securebank-prod --region us-central1 --project alpine-anvil-473102-c4
+kubectl get pods
+gcloud auth application-default login
+terraform apply
+gcloud auth application-default login
+terraform apply
+gcloud auth login
+terraform apply
+gcloud auth application-default login
+terraform apply
+gcloud auth application-default login
+terraform apply
+gcloud auth list
+gcloud auth login 
+gcloud auth list
+gcloud auth application-default login
+gcloud auth list
+terraform apply
+gcloud auth list
+terraform apply
+gcloud auth list
+terraform apply
+# 1. Add all the file changes in the helm directory
+git add helm/
+# 2. Commit the fix
+git commit -m "Fix: Update Helm chart to use new secrets.gke.io driver"
+# 3. Push to your repository
+git push origin master
+This will trigger your GitHub Actions workflow, and this time the deployment will succeed.
+git add helm/
+git commit -m "Fix: Update Helm chart to use new secrets.gke.io driver"
+git push origin master
+git add .github/workflows/git-hub-workflow.yaml
+git commit -m "Final Fix: Manual CRD deploy and corrected network management"
+git push origin master
+git add .github/workflows/git-hub-workflow.yaml
+git commit -m "Final Fix: Corrected Secret Manager CRD Links"
+git push origin master
+git add .github/workflows/git-hub-workflow.yaml
+git commit -m "Final Fix: Corrected Secret Manager CRD Links"
+git push origin master
+git add .github/workflows/git-hub-workflow.yaml
+git commit -m "Definitive Fix: Install CSI Driver via Helm Repo (Stable)"
+git push origin master
+terraform apply
+git add .github/workflows/git-hub-workflow.yaml
+git commit -m "Definitive Fix: Install CSI Driver via Helm Repo (Stable)"
+git push origin master
+git add .github/workflows/git-hub-workflow.yaml
+git commit -m "Definitive Fix: Use stable K8s CSI CRDs via kubectl apply"
+git push origin master
+git add helm/
+git commit -m "Final Fix: Aligned Deployment and SecretProviderClass with GKE native driver"
+git push origin master
+git add helm/
+git commit -m "Final FIX: Align deployment with GKE native driver after CRD installation"
+git push origin master
+git add helm/
+git commit -m "Final FIX: Align deployment with GKE native driver after CRD installation"
+git push origin master
+curl -sL https://raw.githubusercontent.com/kubernetes-sigs/secrets-store-csi-driver/main/deploy/rbac-crds/secrets-store.csi.x-k8s.io_secretproviderclasses.yaml > ./helm/templates/secrets-crds.yaml
+# 1. Add all the file changes in the helm directory
+git add helm/
+# 2. Commit the fix
+git commit -m "Final FIX: Verified and pushed GKE-native driver names"
+# 3. Push to your repository
+git push origin master
+curl -sL https://raw.githubusercontent.com/GoogleCloudPlatform/secrets-store-csi-driver-provider-gcp/main/deployment/cluster-role-binding.yaml > ./helm/templates/secrets-rbac.yaml
+git add helm/
+git commit -m "Final FIX: Verified and pushed GKE-native driver names"
+git push origin master
+git add /helm
+ls
