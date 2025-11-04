@@ -81,14 +81,17 @@ jobs:
         # This tells the action to use the OIDC-authenticated account
         use_auth_provider: 'true'
 
-    # 8. --- THIS IS THE FIX ---
-    # Wait for 30 seconds to allow the GKE firewall rule to update
+    # 8. Wait for 60 seconds to allow the GKE firewall rule to update
     - name: Wait for GKE firewall update
       run: sleep 60
 
     # 9. Deploy the application to GKE using Helm
     - name: Deploy with Helm
       run: |
+        # --- THIS IS THE FIX ---
+        # Tell kubectl/helm to use the new GKE auth plugin
+        export USE_GKE_GCLOUD_AUTH_PLUGIN=True
+        
         export IMAGE_REPO="us-central1-docker.pkg.dev/$PROJECT_ID/$ARTIFACT_REGISTRY/$SERVICE_NAME"
         export SHORT_SHA=$(git rev-parse --short HEAD)
         
