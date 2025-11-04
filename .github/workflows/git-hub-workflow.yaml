@@ -31,8 +31,6 @@ jobs:
       uses: actions/checkout@v3
 
     # --- 1. Authenticate to Google Cloud (OIDC) ---
-    # This action uses the OIDC provider we set up in cicd.tf
-    # It exchanges a GitHub token for a Google Cloud token.
     - name: 'Authenticate to Google Cloud'
       id: auth
       uses: 'google-github-actions/auth@v1'
@@ -47,7 +45,6 @@ jobs:
     - name: 'Set up Cloud SDK'
       uses: 'google-github-actions/setup-gcloud@v1'
       with:
-        # This is the fix: Use 'install_components' instead of 'components'
         install_components: 'gke-gcloud-auth-plugin'
 
     - name: 'Configure Docker'
@@ -56,13 +53,10 @@ jobs:
     # --- 3. Build and Push Image ---
     - name: 'Build Docker Image'
       run: |
-        # Fix: Point to the 'app' directory where your Dockerfile is
         docker build -t ${{ env.SERVICE_NAME }} ./app
-
     - name: 'Tag and Push Docker Image'
       id: build-image
       run: |
-        # Use the short commit SHA as the image tag
         export SHORT_SHA=$(git rev-parse --short HEAD)
         export IMAGE_PATH="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
         
@@ -72,19 +66,24 @@ jobs:
         docker push $IMAGE_PATH:$SHORT_SHA
         docker push $IMAGE_PATH:latest
 
-        # Set output for the tag
         echo "image_tag=$SHORT_SHA" >> $GITHUB_OUTPUT
 
     # --- 4. Deploy to GKE with Helm ---
+    
+    # --- THIS IS THE FIX ---
+    # We replace the 'run: gcloud container clusters get-credentials' command
+    # with the official Google GitHub Action that handles firewall rules.
     - name: 'Get GKE Credentials'
-      # This uses the OIDC-authenticated gcloud to get cluster credentials
-      run: gcloud container clusters get-credentials ${{ env.GKE_CLUSTER }} --region ${{ env.GKE_REGION }}
+      uses: 'google-github-actions/get-gke-credentials@v1'
+      with:
+        cluster_name: ${{ env.GKE_CLUSTER }}
+        location: ${{ env.GKE_REGION }}
+    # ---------------------
 
     - name: 'Deploy with Helm'
       run: |
         export IMAGE_REPO="${{ env.GKE_REGION }}-docker.pkg.dev/${{ env.PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY }}/${{ env.SERVICE_NAME }}"
         
-        # Fix: Point to the 'helm' directory at the root
         helm upgrade --install ${{ env.SERVICE_NAME }} ./helm \
           --set image.repository=$IMAGE_REPO \
           --set image.tag=${{ steps.build-image.outputs.image_tag }} \
